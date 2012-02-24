@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="utf-8"?>
+<project name="Build-Script" default="build.project" basedir="../../" xmlns:ac="antlib:net.sf.antcontrib">
+    <description>Client-side build script</description>
+	
+	<taskdef uri="antlib:net.sf.antcontrib" resource="net/sf/antcontrib/antlib.xml">
+        <classpath>
+            <pathelement location="${basedir}/assets/build/tools/ant-contrib-1.0b3.jar"/>
+        </classpath>
+    </taskdef>
+    
+    <!-- ============================================
+    =================================================
+	Load properties
+	- set environment
+	- load specific project properties
+	- load base properties
+	=================================================
+	================================================= -->
+    <property environment="ENV" />
+    <property file="assets/build/config/project.properties"/>
+    <property file="assets/build/config/base.properties"/>
+    
+    <fail message="All features of the build script require Ant version 1.8.2. Please upgrade to 1.8.2 or remove all instances of 'overwrite=no' (and this fail task) from the build script to continue">
+        <condition>
+            <not>
+                <contains string="${ant.version}" substring="1.8.2"/>
+            </not>
+        </condition>
+    </fail>
+    
+    <!-- ============================================
+    =================================================
+	Welcome message
+	=================================================
+	================================================= -->
+    <target name="-welcome">
+    	<echo message="====================================================================="/>
+        <echo message="====================================================================="/>
+        <echo message="====================================================================="/>
+		<echo message=""/>
+        <echo message="Hello, I will be building your project."/>
+        <echo message="I will be finished soon - you will be able to find all cleaned/compressed files in your release folder"/>
+		<echo message=""/>
+        <echo message="====================================================================="/>
+        <echo message="====================================================================="/>
+		<echo message="====================================================================="/>
+    </target>
+	
+	<!-- ============================================
+    =================================================
+	Clean previous build
+	=================================================
+	================================================= -->
+	<target name="-clean" description="Removes current release">
+		<echo>- Cleaning current release</echo>
+		<echo message="====================================================================="/>
+		<echo message=""/>
+		
+        <delete dir="${dir.release}"/>
+        <echo message=""/>
+        <echo>Finished cleaning</echo>
+    </target>
+    
+    <!-- ============================================
+    =================================================
+	Build project release folder structure
+	=================================================
+	================================================= -->
+    <target name="-init" depends="-clean" description="Create release directory structure">
+		<echo>- Creating release directory structure</echo>
+		<echo>- Create and save time stamp of build</echo>
+		<echo message="====================================================================="/>
+		<echo message=""/>
+		
+        <tstamp>
+            <format property="TODAY" pattern="EEE, d MMM yyyy HH:mm:ss Z"/>
+        </tstamp>
+        
+        <mkdir dir="${dir.release}"/>
+		<mkdir dir="${build.assets}"/>
+		<mkdir dir="${build.css}"/>
+		<mkdir dir="${build.scripts}"/>
+		<mkdir dir="${build.images}"/>
+        
+        <echo file="${dir.release}/__stamp.txt" append="false">Build Date: ${TODAY}</echo>
+        <echo message=""/>
+        <echo>Finished building project folder structure</echo>
+    </target>
+	
+	<!-- ============================================
+    =================================================
+	Compress HTML
+	=================================================
+	================================================= -->
+	<target name="-compress.html" depends="-init" description="Removes whitespace and comments from HTML files">
+		<echo>- Maintaining white space</echo>
+		<echo>- Removing HTML comments</echo>
+		<echo>- Removing quotes</echo>
+		<echo>- Compressing inline styles and scripts</echo>
+		<echo>- Preserve PHP</echo>
+		<echo>- Preserve SSI</echo>
+		<echo message="====================================================================="/>
+		<echo message=""/>
+		
+		<apply executable="java" parallel="false" dest="${dir.release}">
+			<fileset dir="${basedir}" includes="*.html"/>
+			<arg value="-jar"/>
+			<arg path="${dir.tools}/${tool.htmlcompressor}"/>
+			<arg line="--preserve-multi-spaces"/>
+            <arg line="--remove-quotes"/>
+            <arg line="--compress-js"/>
+            <arg line="--compress-css"/>
+            <arg line="--preserve-php"/>
+            <arg line="--preserve-ssi"/>
+			<srcfile/>
+			<arg value="-o"/>
+			<mapper type="glob" from="*" to="*"/>
+			<targetfile/>
+		</apply>
+		<ac:for param="htmlfile">
+  			<path>
+    			<fileset dir="${dir.release}" includes="*.html"/>
+  			</path>
+  			<sequential>
+    			<echo>HTML File Complete -- @{htmlfile}</echo>
+  			</sequential>
+		</ac:for>
+		<echo message=""/>
+		<echo>Finished compressing HTML files</echo>
+	</target>
+	
+	<!-- ============================================
+    =================================================
+	Minify CSS
+	=================================================
+	================================================= -->
+    <target name="-css.minify" depends="-init" description="Minifies CSS files">
+		<echo>- Removing white space</echo>
+		<echo>- Removing CSS comments</echo>
+		<echo>- Compiling to single line</echo>
+		<echo message="====================================================================="/>
+		<echo message=""/>
+		
+        <apply executable="java" parallel="false"  dest="${build.css}">
+            <fileset dir="${dir.css}" includes="*.css"/>
+            <arg line="-jar"/>
+            <arg path="${dir.tools}/${tool.yuicompressor}"/>
+            <srcfile/>
+            <arg line="-o"/>
+            <mapper type="glob" from="*.css" to="*.css"/>
+            <targetfile/>
+        </apply>
+		<ac:for param="cssfile">
+  			<path>
+    			<fileset dir="${build.css}" includes="*.css"/>
+  			</path>
+  			<sequential>
+    			<echo>CSS File Complete -- @{cssfile}</echo>
+  			</sequential>
+		</ac:for>
+		<echo message=""/>
+		<echo>Finished minifying CSS files</echo>
+    </target>
+    
+    <!-- ============================================
+    =================================================
+	Concat javascript files
+	=================================================
+	================================================= -->
+    <target name="-js.concatenate" depends="-init" description="Concatenates specified JS files">
+    	<echo>- Create concatenated folder if JS files specified</echo>
+    	<echo>- Check to see if any JS files need to be concatenated</echo>
+		<echo message="====================================================================="/>
+		<echo message=""/>
+		
+    	<copy todir="${dir.scripts.concat}">
+    		<fileset dir="${dir.scripts}" includes="${concatenated.js}"/>
+  		</copy>
+  		<ac:if>
+    		<available file="${dir.scripts.concat}" type="dir"/>
+    		<then>
+    			<echo>- Concatenate specified js files</echo>
+				<echo message="====================================================================="/>
+				<echo message=""/>
+		
+        		<concat destfile="${dir.scripts}/${concat.js.name}">
+            		<filelist dir="${dir.scripts}" files="${concatenated.js}"/>
+        		</concat>
+        		<echo>Finished concatenating JS files</echo>
+    		</then>
+    		<else>
+    			<echo>No JS files to concat</echo>
+    		</else>
+    	</ac:if>
+    </target>
+    
+    <!-- ============================================
+    =================================================
+	Minify javascript
+	=================================================
+	================================================= -->
+    <target name="-js.minify" depends="-init, -js.concatenate" description="Minifies js files">
+    	<echo>- Removing white space</echo>
+		<echo>- Remove un-needed semi</echo>
+		<echo>- Preserve block comments</echo>
+		<echo>- Compile to single line</echo>
+		<echo>- Exclude cancated JS files if any</echo>
+		<echo message="====================================================================="/>
+		<echo message=""/>
+		
+        <apply executable="java" parallel="false" dest="${build.scripts}">
+            <fileset dir="${dir.scripts}" includes="*.js" excludes="${concatenated.js}"/>
+            <arg line="-jar"/>
+            <arg path="${dir.tools}/${tool.yuicompressor}"/>
+            <srcfile/>
+            <arg line="-o"/>
+            <mapper type="glob" from="*.js" to="*.js"/>
+            <targetfile/>
+        </apply>
+        <ac:for param="jsfile">
+  			<path>
+    			<fileset dir="${build.scripts}" includes="*.js"/>
+  			</path>
+  			<sequential>
+    			<echo>Javascript File Complete -- @{jsfile}</echo>
+  			</sequential>
+		</ac:for>
+		<echo message=""/>
+		<echo>Finished minifying JS files</echo>
+    </target>
+    
+    <!-- ============================================
+    =================================================
+	Copy images to release folder
+	=================================================
+	================================================= -->
+	<target name="-copy.images" depends="-init" description="Copies images to release build">
+		<echo>- Copying images to release assets directory</echo>
+		<echo message="====================================================================="/>
+		<echo message=""/>
+		
+		<copy todir="${build.images}">
+    		<fileset dir="${dir.images}"/>
+  		</copy>
+  		<ac:for param="image">
+  			<path>
+    			<fileset dir="${build.images}" includes="*.jpg, *.png, *.gif"/>
+  			</path>
+  			<sequential>
+    			<echo>Image File Copied -- @{image}</echo>
+  			</sequential>
+		</ac:for>
+		<echo message=""/>
+		<echo>Finished copying over images</echo>
+  	</target>
+	
+	<!-- ============================================
+    =================================================
+	Build Functions
+	=================================================
+	================================================= -->
+    <target name="build.project" description="Builds all files for production"
+        depends="
+            -welcome,
+			-clean,
+			-init,
+			-compress.html,
+			-copy.images,
+			-css.minify,
+			-js.concatenate,
+			-js.minify">
+    </target>
+</project>
